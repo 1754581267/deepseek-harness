@@ -2,6 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+<script>/* JCEF embeds Chromium 109 which lacks AbortSignal.any (Chrome 116+): polyfill it before any client module runs. */
+if (typeof AbortSignal.any !== "function") {
+  AbortSignal.any = function (signals) {
+    const c = new AbortController();
+    const list = Array.isArray(signals) ? signals : Array.from(signals);
+    const abort = (s) => c.abort(s && s.reason);
+    for (const s of list) {
+      if (s.aborted) { abort(s); break; }
+      s.addEventListener("abort", () => abort(s), { once: true });
+    }
+    return c.signal;
+  };
+}</script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
