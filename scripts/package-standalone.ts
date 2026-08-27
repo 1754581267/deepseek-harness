@@ -408,8 +408,10 @@ export async function smoke(out: string): Promise<void> {
       }
       await new Promise(resolveTimeout => setTimeout(resolveTimeout, 500))
     }
-    if (!page.includes('window.__DSH_BOOT__')) {
-      throw new Error(`${NAME}: smoke: served page is missing the window.__DSH_BOOT__ boot manifest`)
+    // The boot manifest is injected as `window.__DSH_BOOT__` (older builds) or
+    // `globalThis["__DSH_BOOT__"]` (current builds); the bare token covers both.
+    if (!page.includes('__DSH_BOOT__')) {
+      throw new Error(`${NAME}: smoke: served page is missing the __DSH_BOOT__ boot manifest`)
     }
     console.log(`${NAME}: smoke: ${url} served the boot manifest successfully.`)
   } finally {
