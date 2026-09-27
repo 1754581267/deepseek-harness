@@ -149,7 +149,7 @@ function temporaryRoot(): string {
 function createClosure(root: string): void {
   const files = [
     'lib/bin.js',
-    'config/agent-presets/standard/agent.cordis.yml',
+    'node_modules/@deepseek-ai/dsh-web-app/presets/standard.patch.yml',
     'node_modules/@deepseek-ai/dsh-base/cordis.patch.yml',
     'node_modules/@deepseek-ai/dsh-web-app/cordis.patch.yml',
     'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html',

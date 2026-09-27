@@ -6,7 +6,7 @@
  * `node_modules`, every workspace link is replaced with a real copy, and the
  * launcher scripts run the entry with the system Node.js. The frontend dist
  * and the shipped agent presets ride inside the closure — `dsh-web-app`
- * depends on `dsh-web-frontend`, and `apps/cli` ships `config/` — so the
+ * depends on `dsh-web-frontend` and declares its preset patch layers — so the
  * directory is fully self-contained: copy it to a machine with Node.js and run
  * `./dsh web`.
  *
@@ -64,7 +64,7 @@ function pnpmBin(): string {
  */
 const REQUIRED_PATHS: ReadonlyArray<{ label: string; path: string }> = [
   { label: 'dsh CLI entry', path: ENTRY_BIN },
-  { label: 'shipped standard agent preset', path: 'config/agent-presets/standard/agent.cordis.yml' },
+  { label: 'shipped standard agent preset', path: 'node_modules/@deepseek-ai/dsh-web-app/presets/standard.patch.yml' },
   { label: 'base bundle patch layer', path: 'node_modules/@deepseek-ai/dsh-base/cordis.patch.yml' },
   { label: 'web-app bundle patch layer', path: 'node_modules/@deepseek-ai/dsh-web-app/cordis.patch.yml' },
   { label: 'browser frontend dist', path: 'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html' },
@@ -176,6 +176,8 @@ async function deploy(out: string): Promise<void> {
       'deploy',
       '--legacy',
       '--prod',
+      // Production deployment omits workspace tooling such as Electron's patched signer.
+      '--config.allow-unused-patches=true',
       '--config.node-linker=hoisted',
       '--config.auto-install-peers=false',
       '--config.link-workspace-packages=true',
@@ -374,37 +376,49 @@ export async function verifyClosure(out: string): Promise<void> {
 
 /**
  * End-to-end smoke: launch `dsh web` from the output with an isolated
- * temporary home, wait for the HTTP server, and verify the boot manifest. This
- * proves the directory is self-contained and the entry boots.
+ * temporary home, wait for the readiness URL it prints, exchange that URL's
+ * access token for the session cookie, and verify the boot manifest on the
+ * authenticated page. This proves the directory is self-contained and the entry
+ * boots.
  * @param out - the output directory.
  * @param skipBuild - whether artifacts were freshly built (affects nothing here).
  */
 export async function smoke(out: string): Promise<void> {
   const home = await mkdtemp(join(tmpdir(), 'dsh-standalone-home-'))
   const port = 30_000 + Math.floor(Math.random() * 20_000)
-  const child = spawn(process.execPath, [ENTRY_BIN, 'web', '--port', String(port)], {
+  const child = spawn(process.execPath, [ENTRY_BIN, 'web', '--port', String(port), '--no-open'], {
     cwd: out,
     env: { ...process.env, DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+  let stdout = ''
   let stderr = ''
+  child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString() })
   child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString() })
   try {
-    const url = `http://127.0.0.1:${port}/`
     const deadline = Date.now() + 60_000
     let page = ''
     for (;;) {
       if (Date.now() > deadline) {
-        throw new Error(`${NAME}: smoke: server did not become ready on ${url}; stderr: ${stderr.slice(0, 500)}`)
+        throw new Error(`${NAME}: smoke: server did not become ready on port ${String(port)}; stderr: ${stderr.slice(0, 500)}`)
       }
-      try {
-        const response = await fetch(url)
-        if (response.ok) {
-          page = await response.text()
-          break
+      const launchUrl = /dsh web: (http:\/\/[^\s]+)/.exec(stdout)?.[1]
+      if (launchUrl !== undefined) {
+        try {
+          // The readiness line carries an access token; requesting that URL exchanges
+          // it for the session cookie the bare origin requires, so the page needs it.
+          const launch = await fetch(launchUrl, { redirect: 'manual' })
+          const [cookie] = (launch.headers.get('set-cookie') ?? '').split(';', 1)
+          if (cookie !== undefined && cookie !== '') {
+            const response = await fetch(`${new URL(launchUrl).origin}/`, { headers: { cookie } })
+            if (response.ok) {
+              page = await response.text()
+              break
+            }
+          }
+        } catch {
+          // Server not up yet; retry.
         }
-      } catch {
-        // Server not up yet; retry.
       }
       await new Promise(resolveTimeout => setTimeout(resolveTimeout, 500))
     }
@@ -413,7 +427,7 @@ export async function smoke(out: string): Promise<void> {
     if (!page.includes('__DSH_BOOT__')) {
       throw new Error(`${NAME}: smoke: served page is missing the __DSH_BOOT__ boot manifest`)
     }
-    console.log(`${NAME}: smoke: ${url} served the boot manifest successfully.`)
+    console.log(`${NAME}: smoke: the authenticated page served the boot manifest successfully.`)
   } finally {
     child.kill()
     // The exit event can already have fired before the listener attaches; the
