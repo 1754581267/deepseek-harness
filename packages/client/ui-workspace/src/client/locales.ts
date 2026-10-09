@@ -7,8 +7,11 @@
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'defaultWorkspace.failed': '无法创建默认工作区，请通过“选择工作区”选择文件夹',
+  'draft.workspaceRequired': '请先选择工作区',
+  'draft.initializationFailed': '暂时无法填入草稿，请稍后重试',
   'group.ungrouped': '未分组',
   'session.new': '新会话',
+  'session.untitled': '未命名',
   'shortcut.noSession': '请先选择一个会话',
   'shortcut.noPicker': '目录选择器不可用',
   'shortcut.directoryBusy': '正在选择或添加工作区',
@@ -125,8 +128,11 @@ export type WorkspaceKey = keyof typeof zh
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
   'defaultWorkspace.failed': 'Unable to create default workspace. Use Choose workspace to select a folder.',
+  'draft.workspaceRequired': 'Choose a workspace first.',
+  'draft.initializationFailed': 'Could not fill the draft. Please try again shortly.',
   'group.ungrouped': 'Ungrouped',
   'session.new': 'New Session',
+  'session.untitled': 'Untitled',
   'shortcut.noSession': 'Select a session first',
   'shortcut.noPicker': 'Directory picker unavailable',
   'shortcut.directoryBusy': 'Selecting or adding a workspace',
